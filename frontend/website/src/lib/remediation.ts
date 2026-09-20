@@ -54,6 +54,14 @@ const REMEDIATION_MAP: Record<FindingCategory, RemediationInfo> = {
     remediation: "Restrict Access-Control-Allow-Origin to a known allowlist, and never combine a wildcard origin with Access-Control-Allow-Credentials: true.",
     references: "OWASP A05 · CWE-942",
   },
+  dom_xss_taint: {
+    remediation: "Sanitize or HTML-escape this value before writing it into the DOM — or use a safe API (textContent, DOMPurify) instead of innerHTML/outerHTML/insertAdjacentHTML.",
+    references: "OWASP A03 · CWE-79",
+  },
+  discovered_endpoint: {
+    remediation: "This is a reconnaissance finding, not a vulnerability by itself — it lists an endpoint the page called that a static crawl wouldn't see. Review it for auth/rate-limiting the same way you would any other API route.",
+    references: "OWASP A01",
+  },
 };
 
 export function getRemediation(category: FindingCategory): RemediationInfo {
@@ -90,6 +98,10 @@ export function describeFinding(f: Finding): { title: string; evidence: string }
       return { title: `Possible SQL injection: ${f.parameterName}`, evidence: f.evidenceSnippet };
     case "cors_misconfig":
       return { title: "CORS misconfiguration", evidence: `Origin ${f.requestOrigin} reflected as ${f.reflectedAcaoValue}` };
+    case "dom_xss_taint":
+      return { title: `DOM XSS: ${f.source ?? "unknown source"}`, evidence: f.evidence ?? "" };
+    case "discovered_endpoint":
+      return { title: `${f.method} ${f.testedUrl}`, evidence: f.evidence ?? "" };
     default:
       return { title: "Unknown finding", evidence: "" };
   }

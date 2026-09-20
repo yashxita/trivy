@@ -1,23 +1,36 @@
 /**
- * Trivy design tokens — translucent floating glass elements on transparent body.
+ * Trivy design tokens — soft frosted white glass, pink as accent only.
+ * Both the extension (popup, options) and the website dashboard import
+ * this file so the two surfaces stay visually identical.
  */
 :root {
-  /* Translucent frosted container backgrounds */
-  --glass-bg: rgba(255, 255, 255, 0.72);
-  --glass-bg-strong: rgba(255, 255, 255, 0.88);
-  --glass-bg-subtle: rgba(255, 255, 255, 0.55);
-  --glass-border: rgba(255, 255, 255, 0.85);
-  --glass-blur: 20px;
+  /* Near-white frosted base with just a whisper of pink at the edge —
+     the card should read as white glass, not a colored fill. */
+  --gradient-main: linear-gradient(
+    150deg,
+    rgba(255, 255, 255, 0.92) 0%,
+    rgba(255, 250, 252, 0.88) 55%,
+    rgba(253, 232, 242, 0.85) 100%
+  );
 
-  /* Text — dark contrast */
+  /* Inner content grouping — barely there, just enough separation to
+     read as a section, not a second colored box on top of the first */
+  --glass-bg: rgba(255, 255, 255, 0.5);
+  --glass-bg-strong: rgba(255, 255, 255, 0.85);
+  --glass-border: rgba(255, 255, 255, 0.7);
+  --glass-blur: 16px;
+  --window-blur: 40px;
+
+  /* Text — dark, near-black, high contrast against the white glass */
   --ink: #241A22;
-  --muted: #6E5C6A;
+  --muted: #8C7A87;
+  --on-gradient: #241A22;
 
-  /* Accent */
-  --accent: #5390e0;
-  --accent-soft: #afcce7;
+  /* Accent — the one place color shows up with any strength */
+  --accent: #DB2777;
+  --accent-soft: #F9A8D4;
 
-  /* Severity indicators */
+  /* Severity — kept saturated/distinct on purpose */
   --critical: #DC2626;
   --high: #EA580C;
   --medium: #D97706;
@@ -27,11 +40,11 @@
   --font-ui: -apple-system, "Segoe UI", system-ui, sans-serif;
   --font-mono: "SFMono-Regular", "Menlo", "Consolas", monospace;
 
-  --radius-lg: 18px;
-  --radius-md: 12px;
+  --radius-lg: 20px;
+  --radius-md: 14px;
   --radius-pill: 999px;
-  --radius-window: 24px;
+  --radius-window: 28px;
 
-  /* Subtle panel lift shadow for floating glass panels */
-  --shadow-panel: 0 8px 20px rgba(36, 26, 34, 0.08), 0 2px 6px rgba(0, 0, 0, 0.04);
+  /* Soft, mostly-neutral ambient shadow — not a colored glow */
+  --shadow-glass: 0 24px 60px rgba(36, 26, 34, 0.10), 0 4px 14px rgba(219, 39, 119, 0.06);
 }

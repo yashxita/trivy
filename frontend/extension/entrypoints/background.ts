@@ -3,6 +3,7 @@ import { evaluateCookies } from "../lib/checks/cookies";
 import { getCachedHeaders, setCachedHeaders } from "../lib/headerCache";
 import { isExtensionMessage, type ExtensionMessage } from "../lib/messages";
 import { loadSettings } from "../lib/settings";
+import type { CapturedRequest } from "../lib/requestCapture";
 import { checkHealth, submitScan } from "../shared/api-client";
 import type { Finding, ScanMode, ScanResponse } from "../shared/types";
 
@@ -43,6 +44,32 @@ function reportProgress(percent: number): void {
   chrome.runtime.sendMessage(message).catch(() => {});
 }
 
+/**
+ * Pulls whatever the MAIN-world request-capture script has accumulated on
+ * window.__trivyCapturedRequests. Reading it back this way (rather than a
+ * postMessage bridge) works because chrome.scripting.executeScript's
+ * return value comes back to the caller regardless of which world the
+ * function ran in — no isolated-world relay needed.
+ *
+ * Chrome-only right now: chrome.scripting world:"MAIN" support on Firefox
+ * is inconsistent, so this may need a different approach there. Wrapped
+ * in try/catch so a failure here never breaks the rest of the scan.
+ */
+async function getCapturedRequests(tabId: number): Promise<CapturedRequest[]> {
+  try {
+    const results = await chrome.scripting.executeScript({
+      target: { tabId },
+      world: "MAIN",
+      func: () =>
+        (window as unknown as { __trivyCapturedRequests?: unknown[] })
+          .__trivyCapturedRequests ?? [],
+    });
+    return (results[0]?.result as CapturedRequest[]) ?? [];
+  } catch {
+    return [];
+  }
+}
+
 async function runScan(
   scanMode: ScanMode,
   consent: boolean,
@@ -67,7 +94,7 @@ async function runScan(
   const contentFindings: Finding[] =
     contentResponse.type === "CONTENT_FINDINGS" ? contentResponse.findings : [];
 
-  reportProgress(45);
+  reportProgress(35);
 
   const cached = getCachedHeaders(targetTabId);
   const headerFindings =
@@ -75,7 +102,7 @@ async function runScan(
       ? evaluateHeaders(cached.pageUrl, cached.headers)
       : [];
 
-  reportProgress(60);
+  reportProgress(50);
 
   const cookieFindings =
     settings.enabledCategories.insecure_cookie !== false
@@ -90,17 +117,41 @@ async function runScan(
         )
       : [];
 
-  reportProgress(75);
+  reportProgress(65);
+
+  // SPA-discovered requests (fetch/XHR calls the page made that don't
+  // appear as plain HTML links or forms) — mapped to Info-severity
+  // findings so the backend's crawler has intel a static HTML crawl of
+  // an SPA like Juice Shop couldn't see on its own.
+  const discoveredEndpointFindings: Finding[] =
+    settings.enabledCategories.discovered_endpoint !== false
+      ? (await getCapturedRequests(targetTabId)).map(
+          (req): Finding => ({
+            category: "discovered_endpoint",
+            pageUrl: activeTab.url!,
+            severity: "Info",
+            source: "dom",
+            method: req.method,
+            testedUrl: req.url,
+            evidence: `content-type: ${req.contentType || "unknown"}; query params: ${
+              req.queryParamNames.join(", ") || "none"
+            }; body fields: ${req.bodyFieldNames.join(", ") || "none"}`,
+          }),
+        )
+      : [];
+
+  reportProgress(80);
 
   const passiveFindings: Finding[] = [
     ...contentFindings,
     ...headerFindings,
     ...cookieFindings,
+    ...discoveredEndpointFindings,
   ];
 
   if (scanMode === "passive") {
     reportProgress(100);
-    return { findings: passiveFindings };
+    return { scanId: "local", findings: passiveFindings };
   }
 
   if (!consent) {

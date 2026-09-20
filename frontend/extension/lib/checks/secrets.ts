@@ -9,8 +9,19 @@ const SECRET_PATTERNS: { type: string; pattern: RegExp }[] = [
   { type: "private_key_block", pattern: /-----BEGIN (RSA |EC )?PRIVATE KEY-----/ },
 ];
 
-const MAX_MATCHES_PER_PAGE = 25;
+const MAX_MATCHES_PER_PAGE = 25; // safety cap against pathological pages
 
+/**
+ * Scans inline <script> tag contents on the current page for patterns
+ * that look like secrets. Per the report's data-handling rules, only the
+ * fact that a secret-like value exists is reported — the matched value
+ * itself is never included in the finding.
+ *
+ * Only inline scripts are scanned (script.textContent). External script
+ * files are not fetched here to avoid extra network requests during a
+ * passive scan — that stays true to "passive scan makes no additional
+ * requests."
+ */
 export function checkExposedSecrets(): ExposedSecretFinding[] {
   const pageUrl = window.location.href;
   const findings: ExposedSecretFinding[] = [];

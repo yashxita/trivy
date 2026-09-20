@@ -1,11 +1,8 @@
 /**
- * Trivy design tokens — soft frosted white glass, pink as accent only.
- * Both the extension (popup, options) and the website dashboard import
- * this file so the two surfaces stay visually identical.
+ * Trivy design tokens — frosted glass, light and dark variants.
+ * Default (no attribute) is light. Add data-theme="dark" to <html> for dark.
  */
 :root {
-  /* Near-white frosted base with just a whisper of pink at the edge —
-     the card should read as white glass, not a colored fill. */
   --gradient-main: linear-gradient(
     150deg,
     rgba(255, 255, 255, 0.92) 0%,
@@ -13,24 +10,18 @@
     rgba(253, 232, 242, 0.85) 100%
   );
 
-  /* Inner content grouping — barely there, just enough separation to
-     read as a section, not a second colored box on top of the first */
   --glass-bg: rgba(255, 255, 255, 0.5);
   --glass-bg-strong: rgba(255, 255, 255, 0.85);
   --glass-border: rgba(255, 255, 255, 0.7);
-  --glass-blur: 16px;
-  --window-blur: 40px;
+  --glass-blur: 20px;
 
-  /* Text — dark, near-black, high contrast against the white glass */
   --ink: #241A22;
   --muted: #8C7A87;
   --on-gradient: #241A22;
 
-  /* Accent — the one place color shows up with any strength */
   --accent: #DB2777;
   --accent-soft: #F9A8D4;
 
-  /* Severity — kept saturated/distinct on purpose */
   --critical: #DC2626;
   --high: #EA580C;
   --medium: #D97706;
@@ -45,6 +36,38 @@
   --radius-pill: 999px;
   --radius-window: 28px;
 
-  /* Soft, mostly-neutral ambient shadow — not a colored glow */
   --shadow-glass: 0 24px 60px rgba(36, 26, 34, 0.10), 0 4px 14px rgba(219, 39, 119, 0.06);
+
+  --glow-accent: rgba(219, 39, 119, 0.12);
+}
+
+[data-theme="dark"] {
+  --gradient-main: linear-gradient(
+    160deg,
+    #1c0f1a 0%,
+    #2b1228 45%,
+    #170a16 100%
+  );
+
+  --glass-bg: rgba(255, 255, 255, 0.055);
+  --glass-bg-strong: rgba(255, 255, 255, 0.09);
+  --glass-border: rgba(255, 255, 255, 0.13);
+  --glass-blur: 22px;
+
+  --ink: #F5E9F1;
+  --muted: #C9A3BC;
+  --on-gradient: #F5E9F1;
+
+  --accent: #F472B6;
+  --accent-soft: #DB2777;
+
+  --critical: #F87171;
+  --high: #FB923C;
+  --medium: #FBBF24;
+  --low: #4ADE80;
+  --info: #C9A3BC;
+
+  --shadow-glass: 0 24px 60px rgba(0, 0, 0, 0.45), 0 0 50px rgba(244, 114, 182, 0.12);
+
+  --glow-accent: rgba(244, 114, 182, 0.18);
 }

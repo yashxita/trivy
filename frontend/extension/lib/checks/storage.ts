@@ -45,6 +45,7 @@ export function checkSensitiveStorage(): SensitiveStorageFinding[] {
       ...scanStorage(window.sessionStorage, "sessionStorage", pageUrl),
     ];
   } catch {
+    // Storage access can throw in some sandboxed/iframe contexts — fail closed.
     return [];
   }
 }

@@ -22,6 +22,20 @@ function redactUrl(url: URL, paramName: string): string {
 }
 
 /**
+ * Collects parameter names via forEach rather than for...of over
+ * .entries() — per FRONTEND_CHANGES_NEEDED.md's cross-browser note,
+ * don't assume every browser exposes URLSearchParams.entries() as an
+ * iterable; forEach is the one iteration method guaranteed everywhere.
+ */
+function collectParamNames(url: URL): string[] {
+  const names: string[] = [];
+  url.searchParams.forEach((_value, key) => {
+    if (!names.includes(key)) names.push(key);
+  });
+  return names;
+}
+
+/**
  * Checks the current page URL for sensitive-looking query parameters.
  * IMPORTANT: redaction happens here, before this ever reaches a message,
  * a log, or the network. The raw value never leaves this function.
@@ -35,7 +49,7 @@ export function checkSensitiveUrl(): SensitiveUrlFinding[] {
     return findings;
   }
 
-  for (const [paramName] of url.searchParams.entries()) {
+  for (const paramName of collectParamNames(url)) {
     const match = SENSITIVE_PARAM_PATTERNS.find(({ pattern }) =>
       pattern.test(paramName),
     );

@@ -2,6 +2,9 @@ import { useEffect, useState } from "react";
 import { loadSettings, saveSettings } from "../../lib/settings";
 import { DEFAULT_SETTINGS, type FindingCategory, type ScanSettings } from "../../shared/types";
 
+// Only passive categories are user-toggleable — active-scan categories are
+// produced entirely on the backend and aren't something the extension
+// runs, so there's nothing to enable/disable here.
 const TOGGLEABLE_CATEGORIES: { key: FindingCategory; label: string }[] = [
   { key: "header", label: "Security headers" },
   { key: "insecure_cookie", label: "Insecure cookies" },
@@ -12,6 +15,8 @@ const TOGGLEABLE_CATEGORIES: { key: FindingCategory; label: string }[] = [
   { key: "exposed_secret", label: "Exposed secrets / API keys" },
   { key: "vulnerable_library", label: "Vulnerable JS libraries" },
   { key: "sensitive_storage", label: "Sensitive data in storage" },
+  { key: "dom_xss_taint", label: "DOM XSS taint tracking" },
+  { key: "discovered_endpoint", label: "SPA endpoint discovery" },
 ];
 
 export default function App() {

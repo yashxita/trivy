@@ -2,8 +2,11 @@ import type { VulnerableLibraryFinding } from "../../shared/types";
 
 interface LibraryRule {
   name: string;
+  /** Reads the version off a page global, if the library exposes one. */
   detectFromWindow?: () => string | undefined;
+  /** Matches the version out of a <script src> URL as a fallback. */
   srcPattern?: RegExp;
+  /** Returns true if the detected version is known-vulnerable. */
   isVulnerable: (version: string) => boolean;
   knownCve?: string;
 }
@@ -18,6 +21,9 @@ function versionLessThan(a: string, b: string): boolean {
   return false;
 }
 
+// Small starter reference table — expand as needed. This is the kind of
+// dataset that in a fuller build would come from an external feed (similar
+// to what Retire.js maintains) rather than being hand-maintained here.
 const LIBRARY_RULES: LibraryRule[] = [
   {
     name: "jQuery",

@@ -40,7 +40,10 @@ export type FindingCategory =
   // active-scan categories (computed on the Go backend, not the extension)
   | "reflected_input"
   | "sql_injection"
-  | "cors_misconfig";
+  | "cors_misconfig"
+  // client-side (DOM) findings — new, see FRONTEND_CHANGES_NEEDED.md
+  | "dom_xss_taint"
+  | "discovered_endpoint";
 
 // ---------------------------------------------------------------------------
 // Base finding shape — every category extends this
@@ -57,6 +60,22 @@ interface FindingBase {
    * server-side (mixed_content, unencrypted_credentials especially).
    */
   severity: Severity;
+  /**
+   * Common optional fields the backend attaches to (or expects on) any
+   * finding, matching the Go model.Finding struct exactly. Not every
+   * category uses every field — e.g. "confidence" is mostly set by
+   * backend-produced active-scan findings, while "affectedPages" /
+   * "sampleUrls" appear when the backend rolls up the same issue found
+   * across a crawl of multiple pages into one finding.
+   */
+  confidence?: "heuristic" | "likely" | "confirmed";
+  /** Where this finding came from — "http" for backend probes, "dom" for frontend-observed findings. */
+  source?: string;
+  /** Free-text evidence description. Always prefer this over inventing a new typed field. */
+  evidence?: string;
+  testedUrl?: string;
+  affectedPages?: number;
+  sampleUrls?: string[];
 }
 
 export interface HeaderFinding extends FindingBase {
@@ -146,6 +165,33 @@ export interface CorsMisconfigFinding extends FindingBase {
   allowsCredentials: boolean;
 }
 
+/**
+ * Client-side DOM XSS taint finding — a controllable source (URL query
+ * value, hash, or form input) was observed reaching a dangerous DOM sink
+ * without escaping. Computed entirely in the browser; the mechanism is
+ * documented in lib/checks/domTaint.ts. Uses only the common optional
+ * fields (source, evidence, confidence) rather than a dedicated "sink"
+ * field, because the backend's Go struct doesn't declare one — anything
+ * not in that struct is silently dropped on an active/combined scan's
+ * round trip through the backend, so the sink name is folded into the
+ * evidence text instead to survive that round trip.
+ */
+export interface DomXssTaintFinding extends FindingBase {
+  category: "dom_xss_taint";
+}
+
+/**
+ * A request the page itself made (via fetch/XHR) that isn't visible as a
+ * plain HTML link or form — the SPA-endpoint-discovery finding from
+ * FRONTEND_CHANGES_NEEDED.md. Only names/shapes are captured, never
+ * values — see lib/requestCapture.ts.
+ */
+export interface DiscoveredEndpointFinding extends FindingBase {
+  category: "discovered_endpoint";
+  method: string;
+  testedUrl: string;
+}
+
 /** Union of every possible finding shape. Use this type when handling a findings array. */
 export type Finding =
   | HeaderFinding
@@ -159,7 +205,9 @@ export type Finding =
   | SensitiveStorageFinding
   | ReflectedInputFinding
   | SqlInjectionFinding
-  | CorsMisconfigFinding;
+  | CorsMisconfigFinding
+  | DomXssTaintFinding
+  | DiscoveredEndpointFinding;
 
 // ---------------------------------------------------------------------------
 // Scan request / response — the POST /api/v1/scans contract
@@ -185,7 +233,21 @@ export interface ScanRequest {
   excludedPaths?: string[];
 }
 
+export interface Coverage {
+  pagesDiscovered: number;
+  pagesScanned: number;
+  requestsMade: number;
+  formsDiscovered: number;
+  parametersTested: number;
+  bodyParametersTested: number;
+  activeProbes: number;
+  truncated: boolean;
+  warnings?: string[];
+}
+
 export interface ScanResponse {
+  /** Always present — the backend now persists every scan under this id. */
+  scanId: string;
   /** Combined list: the passive findings echoed back plus any active findings the backend computed. */
   findings: Finding[];
   /** Optional summary counts, handy for the popup/dashboard to avoid recomputing. */
@@ -196,6 +258,8 @@ export interface ScanResponse {
     low: number;
     info: number;
   };
+  /** Present on active/combined scans — what the backend's crawl actually covered. */
+  coverage?: Coverage;
 }
 
 // ---------------------------------------------------------------------------

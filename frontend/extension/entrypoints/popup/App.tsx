@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { loadSettings } from "../../lib/settings";
 import { isExtensionMessage, type ExtensionMessage } from "../../lib/messages";
-import type { Finding, ScanMode } from "../../shared/types";
+import type { Coverage, Finding, ScanMode } from "../../shared/types";
 
 type ScanState = "idle" | "running" | "done" | "error";
 
@@ -19,6 +19,7 @@ export default function App() {
   const [scanState, setScanState] = useState<ScanState>("idle");
   const [progress, setProgress] = useState(0);
   const [findings, setFindings] = useState<Finding[]>([]);
+  const [coverage, setCoverage] = useState<Coverage | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [pageUrl, setPageUrl] = useState<string>("");
 
@@ -73,6 +74,7 @@ export default function App() {
             (a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity],
           ),
         );
+        setCoverage(response.result.coverage ?? null);
         setScanState("done");
       } else if (response.type === "SCAN_ERROR") {
         setScanState("error");
@@ -93,6 +95,8 @@ export default function App() {
   }
 
   const needsConsent = scanMode !== "passive";
+  const mainFindings = findings.filter((f) => f.severity !== "Info");
+  const infoFindings = findings.filter((f) => f.severity === "Info");
 
   return (
     <main className="popup">
@@ -158,16 +162,42 @@ export default function App() {
 
       {scanState === "done" && (
         <div className="glass-panel">
-          <h2 className="findings-heading">Findings ({findings.length})</h2>
-          <ul className="findings-list">
-            {findings.map((f, i) => (
-              <li key={i} className={`finding finding--${f.severity.toLowerCase()}`}>
-                <span className="finding__dot" />
-                <span className="finding__label">{describeFinding(f)}</span>
-                <span className="finding__severity">{f.severity}</span>
-              </li>
-            ))}
-          </ul>
+          {coverage && (
+            <p className="coverage-line">
+              {coverage.pagesScanned}/{coverage.pagesDiscovered} pages · {coverage.requestsMade} requests
+              {coverage.truncated ? " · truncated" : ""}
+            </p>
+          )}
+
+          <h2 className="findings-heading">Findings ({mainFindings.length})</h2>
+          {mainFindings.length === 0 ? (
+            <p className="empty-state">No issues found.</p>
+          ) : (
+            <ul className="findings-list">
+              {mainFindings.map((f, i) => (
+                <li key={i} className={`finding finding--${f.severity.toLowerCase()}`}>
+                  <span className="finding__dot" />
+                  <span className="finding__label">{describeFinding(f)}</span>
+                  <span className="finding__severity">{f.severity}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {infoFindings.length > 0 && (
+            <>
+              <h2 className="findings-heading findings-heading--info">Info ({infoFindings.length})</h2>
+              <ul className="findings-list">
+                {infoFindings.map((f, i) => (
+                  <li key={i} className="finding finding--info">
+                    <span className="finding__dot" />
+                    <span className="finding__label">{describeFinding(f)}</span>
+                    <span className="finding__severity">Info</span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
 
           <div className="actions">
             <button type="button" onClick={exportJson}>
@@ -220,6 +250,10 @@ function describeFinding(f: Finding): string {
       return `Possible SQL injection: ${f.parameterName}`;
     case "cors_misconfig":
       return "CORS misconfiguration";
+    case "dom_xss_taint":
+      return f.evidence ?? `DOM XSS: value from ${f.source ?? "unknown source"}`;
+    case "discovered_endpoint":
+      return `${f.method} ${f.testedUrl}`;
     default:
       return "Unknown finding";
   }
