@@ -1,0 +1,48 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: trivy
+      POSTGRES_USER: trivy
+      POSTGRES_PASSWORD: trivy-local-only
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U trivy -d trivy"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+    volumes:
+      - trivy-postgres:/var/lib/postgresql/data
+
+  api:
+    build:
+      context: .
+      network: host
+    ports:
+      - "8080:8080"
+    environment:
+      TRIVY_ADDRESS: ":8080"
+      TRIVY_DATABASE_URL: "postgres://trivy:trivy-local-only@postgres:5432/trivy?sslmode=disable"
+      TRIVY_ALLOWED_ORIGINS: "http://localhost:5173,http://localhost:4173"
+      TRIVY_ALLOW_PRIVATE_TARGETS: "true"
+      TRIVY_INTRUSIVE_ALLOWED_HOSTS: "juice-shop.localhost:3000"
+      TRIVY_SCAN_TIMEOUT: "60s"
+      TRIVY_MAX_SCAN_PAGES: "25"
+      TRIVY_MAX_SCAN_DEPTH: "2"
+      TRIVY_MAX_SCAN_REQUESTS: "100"
+      TRIVY_MAX_CONCURRENT_SCANS: "2"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  juice-shop:
+    image: bkimminich/juice-shop:latest
+    profiles: ["lab"]
+    ports:
+      - "3000:3000"
+    networks:
+      default:
+        aliases:
+          - juice-shop.localhost
+
+volumes:
+  trivy-postgres:
