@@ -2,11 +2,11 @@ import type { Finding } from "../shared/types";
 
 const SEVERITY_ORDER: Finding["severity"][] = ["Critical", "High", "Medium", "Low", "Info"];
 const SEVERITY_VAR: Record<Finding["severity"], string> = {
-  Critical: "var(--critical)",
-  High: "var(--high)",
-  Medium: "var(--medium)",
-  Low: "var(--low)",
-  Info: "var(--info)",
+  Critical: "var(--sev-critical)",
+  High: "var(--sev-high)",
+  Medium: "var(--sev-medium)",
+  Low: "var(--sev-low)",
+  Info: "var(--sev-info)",
 };
 
 export default function SeverityBarChart({ findings }: { findings: Finding[] }) {

@@ -1,459 +1,106 @@
-import { useEffect, useState } from "react";
-import { ApiError, submitScan } from "./shared/api-client";
-import type { Coverage, Finding } from "./shared/types";
-import { confidenceLabel, describeFinding, getRemediation } from "./lib/remediation";
-import SeverityBarChart from "./components/SeverityBarChart";
-import CategoryBarChart from "./components/CategoryBarChart";
-import CoverageRing from "./components/CoverageRing";
+import { useCallback, useEffect, useState } from "react";
+import { Background, Logo, MoonIcon, SunIcon } from "./components/Bits";
+import Landing from "./pages/Landing";
+import TestPage from "./pages/TestPage";
 
-type ScanState = "idle" | "running" | "done" | "error";
-type Theme = "light" | "dark";
+type Theme = "dark" | "light";
+type Route = "home" | "test";
 
-interface PastScan {
-  id: string;
-  target: string;
-  timestamp: number;
-  findings: Finding[];
-  coverage: Coverage | null;
+function readRoute(): Route {
+  return window.location.hash.startsWith("#/test") ? "test" : "home";
 }
 
-const SEVERITY_ORDER: Record<Finding["severity"], number> = {
-  Critical: 0,
-  High: 1,
-  Medium: 2,
-  Low: 3,
-  Info: 4,
-};
-
-const CHECK_PILLS = [
-  "Reflected XSS",
-  "SQL injection",
-  "CORS misconfig",
-  "DOM XSS taint",
-  "SPA endpoint discovery",
-];
-
-function severityCounts(findings: Finding[]) {
-  const counts = { critical: 0, high: 0, medium: 0, low: 0 };
-  for (const f of findings) {
-    if (f.severity === "Critical") counts.critical++;
-    else if (f.severity === "High") counts.high++;
-    else if (f.severity === "Medium") counts.medium++;
-    else if (f.severity === "Low") counts.low++;
-  }
-  return counts;
+function systemTheme(): Theme {
+  return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
 }
 
 export default function App() {
-  const [theme, setTheme] = useState<Theme>(
-    () => (localStorage.getItem("trivy-theme") as Theme | null) ?? "light",
-  );
+  const [route, setRoute] = useState<Route>(readRoute);
+  const [theme, setTheme] = useState<Theme>(() => {
+    const stored = localStorage.getItem("trivy-theme");
+    return stored === "dark" || stored === "light" ? stored : systemTheme();
+  });
   const [target, setTarget] = useState("");
-  const [consent, setConsent] = useState(false);
-  const [scanState, setScanState] = useState<ScanState>("idle");
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [errorCode, setErrorCode] = useState<string | null>(null);
-  const [findings, setFindings] = useState<Finding[]>([]);
-  const [coverage, setCoverage] = useState<Coverage | null>(null);
-  const [selected, setSelected] = useState(0);
-  const [pastScans, setPastScans] = useState<PastScan[]>([]);
-  const [viewingPastId, setViewingPastId] = useState<string | null>(null);
+  const [alert, setAlert] = useState(false);
+  const onAlert = useCallback((v: boolean) => setAlert(v), []);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
-    localStorage.setItem("trivy-theme", theme);
   }, [theme]);
 
-  const counts = severityCounts(findings);
+  useEffect(() => {
+    const onHash = () => {
+      setRoute(readRoute());
+      window.scrollTo(0, 0);
+    };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
 
-  async function runScan() {
-    if (!consent || !target) return;
-    setScanState("running");
-    setErrorMessage(null);
-    setViewingPastId(null);
-    setErrorCode(null);
+  function go(next: Route) {
+    window.location.hash = next === "test" ? "#/test" : "#/";
+  }
 
-    try {
-      const result = await submitScan({
-        target,
-        scanMode: "active",
-        consent,
-        findings: [],
-      });
-      const sorted = [...result.findings].sort(
-        (a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity],
-      );
-      setFindings(sorted);
-      setCoverage(result.coverage ?? null);
-      setSelected(0);
-      setScanState("done");
+  function toggleTheme() {
+    const next: Theme = theme === "dark" ? "light" : "dark";
+    setTheme(next);
+    localStorage.setItem("trivy-theme", next);
+  }
 
-      // Session-only history — cleared on page reload, never sent anywhere.
-      // This is something the extension deliberately doesn't do (no
-      // persistent scan history), but the dashboard can hold a working
-      // set for the current session without any backend storage decision.
-      setPastScans((prev) => [
-        {
-          id: result.scanId || `${Date.now()}`,
-          target,
-          timestamp: Date.now(),
-          findings: sorted,
-          coverage: result.coverage ?? null,
-        },
-        ...prev,
-      ].slice(0, 10));
-    } catch (err) {
-      setScanState("error");
-      setErrorMessage(err instanceof Error ? err.message : "Scan failed.");
-      setErrorCode(err instanceof ApiError ? err.code : null);
+  function scrollTo(id: string) {
+    if (route !== "home") {
+      go("home");
+      window.setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth" }), 60);
+    } else {
+      document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
     }
   }
 
-  function viewPastScan(scan: PastScan) {
-    setFindings(scan.findings);
-    setCoverage(scan.coverage);
-    setSelected(0);
-    setViewingPastId(scan.id);
-    setScanState("done");
-  }
-
-  function exportJson() {
-    const blob = new Blob([JSON.stringify(findings, null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `trivy-scan-${safeDomain(target)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-
-  const selectedFinding = findings[selected];
-  const mainFindings = findings.filter((f) => f.severity !== "Info");
-  const infoFindings = findings.filter((f) => f.severity === "Info");
-
   return (
-    <div className="page">
-      <nav className="nav">
-        <span className="nav__brand">🛡 Trivy</span>
-        <button
-          type="button"
-          className="theme-toggle"
-          aria-label="Toggle dark mode"
-          onClick={() => setTheme((t) => (t === "light" ? "dark" : "light"))}
-        >
-          {theme === "light" ? "🌙" : "☀️"}
-        </button>
-      </nav>
-
-      <header className="hero">
-        <h1 className="hero__title">Scan any site for security issues</h1>
-        <p className="hero__subtitle">
-          Point Trivy at a URL and get a live active security scan, run
-          server-side, with fuller visualizations and session history than
-          the browser extension's popup can show.
-        </p>
-        <p className="hero__note">
-          Passive checks (headers, cookies, DOM) need the browser extension —
-          only it can read the live page you're viewing. This dashboard runs
-          the same active engine, on demand, against any URL.
-        </p>
-
-        <div className="check-pills">
-          {CHECK_PILLS.map((c) => (
-            <span key={c} className="check-pill">{c}</span>
-          ))}
-        </div>
-
-        <div className="glass-panel scan-form">
-          <div className="scan-form__row">
-            <input
-              type="url"
-              placeholder="https://example.com"
-              value={target}
-              onChange={(e) => setTarget(e.target.value)}
-              className="target-input"
-              onKeyDown={(e) => e.key === "Enter" && runScan()}
-            />
-            <button
-              type="button"
-              className="run-button"
-              disabled={scanState === "running" || !consent || !target}
-              onClick={runScan}
-            >
-              {scanState === "running" ? "Scanning…" : "▶ Run scan"}
+    <div className="site">
+      <Background alert={route === "test" && alert} />
+      <div className="wrap">
+        <nav className="nav" aria-label="Main">
+          <button type="button" className="brand" onClick={() => go("home")}>
+            <Logo size={34} />
+            Trivy
+          </button>
+          <div className="pill-nav">
+            <button type="button" className={route === "home" ? "on" : ""} onClick={() => go("home")}>
+              Home
+            </button>
+            <button type="button" onClick={() => scrollTo("checks")}>
+              What we check
+            </button>
+            <button type="button" onClick={() => scrollTo("learn")}>
+              Learn
+            </button>
+            <button type="button" className={route === "test" ? "on" : ""} onClick={() => go("test")}>
+              Test
             </button>
           </div>
-          <label className="consent">
-            <input
-              type="checkbox"
-              checked={consent}
-              onChange={(e) => setConsent(e.target.checked)}
-            />
-            I'm authorized to run active security tests against this domain
-          </label>
-          {errorMessage && (
-            <ScanError
-              message={errorMessage}
-              code={errorCode}
-              host={safeHost(target)}
-            />
-          )}
+          <div className="nav__right">
+            <button
+              type="button"
+              className="icon-button"
+              aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+              onClick={toggleTheme}
+            >
+              {theme === "dark" ? <SunIcon /> : <MoonIcon />}
+            </button>
+            <button type="button" className="btn btn--small" onClick={() => go("test")}>
+              Start testing
+            </button>
+          </div>
+        </nav>
+
+        {route === "home" && <Landing target={target} setTarget={setTarget} onStart={() => go("test")} />}
+        <div hidden={route !== "test"}>
+          <TestPage target={target} setTarget={setTarget} onBack={() => go("home")} onAlert={onAlert} />
         </div>
-      </header>
 
-      <div className="layout">
-        <aside className="sidebar">
-          <h2 className="sidebar__heading">Recent scans</h2>
-          {pastScans.length === 0 ? (
-            <p className="empty-state empty-state--sidebar">
-              Scans from this session will show up here.
-            </p>
-          ) : (
-            <ul className="past-scans-list">
-              {pastScans.map((scan) => (
-                <li
-                  key={scan.id}
-                  className={`past-scan ${viewingPastId === scan.id ? "past-scan--active" : ""}`}
-                  onClick={() => viewPastScan(scan)}
-                >
-                  <span className="past-scan__target">{safeDomain(scan.target)}</span>
-                  <span className="past-scan__meta">
-                    {scan.findings.length} findings · {formatTime(scan.timestamp)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </aside>
-
-        <main className="main-content">
-          {scanState === "done" && (
-            <section className="results fade-in">
-              <div className="glass-panel viz-grid">
-                <div className="viz-cell">
-                  <h3>Severity</h3>
-                  <SeverityBarChart findings={findings} />
-                </div>
-                <div className="viz-cell">
-                  <h3>By category</h3>
-                  <CategoryBarChart findings={findings} />
-                </div>
-                {coverage && (
-                  <div className="viz-cell viz-cell--coverage">
-                    <h3>Coverage</h3>
-                    <CoverageRing coverage={coverage} />
-                  </div>
-                )}
-              </div>
-
-              <div className="summary-cards">
-                <div className="summary-card summary-card--critical">
-                  <span className="summary-card__num">{counts.critical}</span>
-                  <span className="summary-card__label">Critical</span>
-                </div>
-                <div className="summary-card summary-card--high">
-                  <span className="summary-card__num">{counts.high}</span>
-                  <span className="summary-card__label">High</span>
-                </div>
-                <div className="summary-card summary-card--medium">
-                  <span className="summary-card__num">{counts.medium}</span>
-                  <span className="summary-card__label">Medium</span>
-                </div>
-                <div className="summary-card summary-card--low">
-                  <span className="summary-card__num">{counts.low}</span>
-                  <span className="summary-card__label">Low</span>
-                </div>
-              </div>
-
-              <div className="results-panel">
-                <div className="glass-panel findings-column">
-                  <div className="findings-column__header">
-                    <h2>Findings ({mainFindings.length})</h2>
-                    <button type="button" onClick={exportJson}>⬇ Export JSON</button>
-                  </div>
-                  {mainFindings.length === 0 ? (
-                    <p className="empty-state">No issues found for this target.</p>
-                  ) : (
-                    <ul className="findings-list">
-                      {mainFindings.map((f, i) => {
-                        const { title } = describeFinding(f);
-                        const globalIndex = findings.indexOf(f);
-                        return (
-                          <li
-                            key={i}
-                            className={`finding finding--${f.severity.toLowerCase()} ${globalIndex === selected ? "finding--selected" : ""}`}
-                            onClick={() => setSelected(globalIndex)}
-                          >
-                            <span className="finding__dot" />
-                            <span className="finding__label">{title}</span>
-                            <span className="finding__severity">{f.severity}</span>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  )}
-
-                  {infoFindings.length > 0 && (
-                    <>
-                      <h2 className="info-heading">Info ({infoFindings.length})</h2>
-                      <ul className="findings-list">
-                        {infoFindings.map((f, i) => {
-                          const { title } = describeFinding(f);
-                          const globalIndex = findings.indexOf(f);
-                          return (
-                            <li
-                              key={i}
-                              className={`finding finding--info ${globalIndex === selected ? "finding--selected" : ""}`}
-                              onClick={() => setSelected(globalIndex)}
-                            >
-                              <span className="finding__dot" />
-                              <span className="finding__label">{title}</span>
-                              <span className="finding__severity">Info</span>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    </>
-                  )}
-                </div>
-
-                {selectedFinding && (
-                  <div className="glass-panel detail-panel">
-                    <DetailView finding={selectedFinding} />
-                  </div>
-                )}
-              </div>
-            </section>
-          )}
-        </main>
+        <footer className="footer">Trivy · scan only systems you are allowed to test.</footer>
       </div>
-
-      <footer className="footer">Findings are pointers for further review, not proof of exploitability.</footer>
     </div>
   );
-}
-
-function DetailView({ finding }: { finding: Finding }) {
-  const { title, evidence } = describeFinding(finding);
-  const { remediation, references } = getRemediation(finding.category, finding);
-  const confidence = confidenceLabel(finding);
-  const samples = (finding.sampleUrls ?? []).slice(0, 5);
-
-  return (
-    <>
-      <div className="detail-panel__header">
-        <h3>{title}</h3>
-        <div className="detail-panel__badges">
-          <span className={`severity-badge severity-badge--${finding.severity.toLowerCase()}`}>
-            {finding.severity}
-          </span>
-          {confidence && (
-            <span className={`confidence-badge confidence-badge--${finding.confidence}`}>
-              {confidence}
-            </span>
-          )}
-        </div>
-      </div>
-      <p className="detail-panel__meta">
-        <PageLabel url={finding.pageUrl} /> · {finding.category}
-      </p>
-
-      {finding.affectedPages !== undefined && finding.affectedPages > 1 && (
-        <>
-          <h4>Seen on {finding.affectedPages} pages</h4>
-          <ul className="sample-list">
-            {samples.map((u) => (
-              <li key={u}>
-                <PageLabel url={u} />
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
-
-      <h4>Evidence</h4>
-      <div className="evidence-block">{evidence || "No evidence text provided."}</div>
-
-      <h4>What to do</h4>
-      <p className="detail-panel__fix">{remediation}</p>
-
-      <p className="detail-panel__refs">refs: {references}</p>
-    </>
-  );
-}
-
-/** The backend rewrites URL paths to /redacted and strips queries. Say so instead of showing it as a real path. */
-function PageLabel({ url }: { url: string }) {
-  try {
-    const u = new URL(url);
-    if (u.pathname === "/redacted") {
-      return (
-        <>
-          {u.origin} <span className="redacted-chip">path hidden by server</span>
-        </>
-      );
-    }
-  } catch {
-    // not a parseable URL; show as-is
-  }
-  return <>{url}</>;
-}
-
-function safeDomain(url: string): string {
-  try {
-    return new URL(url).hostname;
-  } catch {
-    return "scan";
-  }
-}
-
-/** host includes the port (e.g. localhost:3000), which is what the backend allowlist matches on. */
-function safeHost(url: string): string {
-  try {
-    return new URL(url).host;
-  } catch {
-    return "";
-  }
-}
-
-function ScanError({
-  message,
-  code,
-  host,
-}: {
-  message: string;
-  code: string | null;
-  host: string;
-}) {
-  if (code === "target_not_allowlisted") {
-    return (
-      <div className="callout" role="alert">
-        <strong>Active scanning isn't enabled for {host || "this host"}</strong>
-        <p>
-          Active scans are intrusive, so the backend only runs them against
-          hosts it has been told to allow. Nothing was sent to this target.
-        </p>
-        <p>
-          Ask the backend owner to add <code>{host || "the host"}</code> to{" "}
-          <code>TRIVY_INTRUSIVE_ALLOWED_HOSTS</code>. The match is exact,
-          including the port. Only scan sites you are authorized to test.
-        </p>
-      </div>
-    );
-  }
-  if (code === "scan_capacity_reached") {
-    return (
-      <div className="callout" role="alert">
-        <strong>The backend is busy</strong>
-        <p>Too many active scans are already running. Wait a few seconds and try again.</p>
-      </div>
-    );
-  }
-  return <p className="error-text">{message}</p>;
-}
-
-function formatTime(ts: number): string {
-  return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }

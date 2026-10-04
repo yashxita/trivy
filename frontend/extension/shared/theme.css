@@ -1,50 +1,164 @@
 /**
- * Trivy design tokens — soft frosted white glass, pink as accent only.
- * Both the extension (popup, options) and the website dashboard import
- * this file so the two surfaces stay visually identical.
+ * Trivy design tokens, "Aurora" theme.
+ * Deep teal-black (dark) or pale mint (light), white or ink pill buttons,
+ * blue/teal glow, red/amber/green reserved for result status.
+ *
+ * Theme selection: follows the system by default. Set
+ * <html data-theme="dark"> or <html data-theme="light"> to force one.
+ * Both the extension (popup, options) and the website import this file.
  */
+
+:root,
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: #041211;
+  --fg: #eaf6f3;
+  --mu: #8fb0ab;
+  --body: #b7d0cb;
+
+  /* Surfaces */
+  --p1: rgba(255, 255, 255, 0.05);
+  --p2: rgba(255, 255, 255, 0.09);
+  --fld: rgba(255, 255, 255, 0.06);
+  --ln: rgba(255, 255, 255, 0.1);
+  --ln2: rgba(255, 255, 255, 0.24);
+  --hi: rgba(120, 230, 220, 0.5);
+
+  /* Primary action: white pill on dark */
+  --acc: #ffffff;
+  --onacc: #06201f;
+
+  /* Ambient glow */
+  --glow: #2fb8e6;
+  --glow0: rgba(47, 184, 230, 0);
+  --o1: #d6fff6;
+  --o2: #33d6c4;
+  --o3: #0a5872;
+  --orbglow: rgba(60, 200, 220, 0.35);
+  --arco: 0.85;
+  --haze: 0.3;
+  --streak: rgba(150, 240, 230, 0.08);
+
+  /* Status */
+  --red: #ff4d5e;
+  --red0: rgba(255, 77, 94, 0);
+  --onred: #12060a;
+  --redbg: rgba(255, 45, 70, 0.16);
+  --redglow: rgba(255, 45, 70, 0.5);
+  --amb: #ffc24b;
+  --ambbg: rgba(255, 176, 32, 0.15);
+  --grn: #43f0a0;
+  --grnbg: rgba(67, 240, 160, 0.14);
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) {
+    color-scheme: light;
+
+    --bg: #eef5f4;
+    --fg: #06201f;
+    --mu: #416461;
+    --body: #264846;
+
+    --p1: rgba(255, 255, 255, 0.75);
+    --p2: #ffffff;
+    --fld: rgba(6, 32, 31, 0.05);
+    --ln: rgba(6, 32, 31, 0.12);
+    --ln2: rgba(6, 32, 31, 0.28);
+    --hi: #06201f;
+
+    --acc: #06201f;
+    --onacc: #ffffff;
+
+    --glow: #3cc3d9;
+    --glow0: rgba(60, 195, 217, 0);
+    --o1: #d6fff6;
+    --o2: #33d6c4;
+    --o3: #0a5872;
+    --orbglow: rgba(6, 32, 31, 0.2);
+    --arco: 0.7;
+    --haze: 0.4;
+    --streak: rgba(6, 32, 31, 0.05);
+
+    --red: #c8102e;
+    --red0: rgba(200, 16, 46, 0);
+    --onred: #ffffff;
+    --redbg: #fde4e7;
+    --redglow: rgba(220, 20, 50, 0.28);
+    --amb: #8a5300;
+    --ambbg: #ffebc4;
+    --grn: #0a7a45;
+    --grnbg: #d6f5e5;
+  }
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --bg: #eef5f4;
+  --fg: #06201f;
+  --mu: #416461;
+  --body: #264846;
+
+  --p1: rgba(255, 255, 255, 0.75);
+  --p2: #ffffff;
+  --fld: rgba(6, 32, 31, 0.05);
+  --ln: rgba(6, 32, 31, 0.12);
+  --ln2: rgba(6, 32, 31, 0.28);
+  --hi: #06201f;
+
+  --acc: #06201f;
+  --onacc: #ffffff;
+
+  --glow: #3cc3d9;
+  --glow0: rgba(60, 195, 217, 0);
+  --o1: #d6fff6;
+  --o2: #33d6c4;
+  --o3: #0a5872;
+  --orbglow: rgba(6, 32, 31, 0.2);
+  --arco: 0.7;
+  --haze: 0.4;
+  --streak: rgba(6, 32, 31, 0.05);
+
+  --red: #c8102e;
+  --red0: rgba(200, 16, 46, 0);
+  --onred: #ffffff;
+  --redbg: #fde4e7;
+  --redglow: rgba(220, 20, 50, 0.28);
+  --amb: #8a5300;
+  --ambbg: #ffebc4;
+  --grn: #0a7a45;
+  --grnbg: #d6f5e5;
+}
+
+/* Shared, theme-independent tokens */
 :root {
-  /* Near-white frosted base with just a whisper of pink at the edge —
-     the card should read as white glass, not a colored fill. */
-  --gradient-main: linear-gradient(
-    150deg,
-    rgba(255, 255, 255, 0.92) 0%,
-    rgba(255, 250, 252, 0.88) 55%,
-    rgba(253, 232, 242, 0.85) 100%
-  );
-
-  /* Inner content grouping — barely there, just enough separation to
-     read as a section, not a second colored box on top of the first */
-  --glass-bg: rgba(255, 255, 255, 0.5);
-  --glass-bg-strong: rgba(255, 255, 255, 0.85);
-  --glass-border: rgba(255, 255, 255, 0.7);
-  --glass-blur: 16px;
-  --window-blur: 40px;
-
-  /* Text — dark, near-black, high contrast against the white glass */
-  --ink: #241A22;
-  --muted: #8C7A87;
-  --on-gradient: #241A22;
-
-  /* Accent — the one place color shows up with any strength */
-  --accent: #DB2777;
-  --accent-soft: #F9A8D4;
-
-  /* Severity — kept saturated/distinct on purpose */
-  --critical: #DC2626;
-  --high: #EA580C;
-  --medium: #D97706;
-  --low: #16A34A;
-  --info: #8C7A87;
-
-  --font-ui: -apple-system, "Segoe UI", system-ui, sans-serif;
-  --font-mono: "SFMono-Regular", "Menlo", "Consolas", monospace;
+  --font-ui: "Geist Variable", "Geist", -apple-system, "Segoe UI", system-ui, sans-serif;
+  --font-serif: "Instrument Serif", Georgia, "Times New Roman", serif;
+  --font-mono: "Geist Mono Variable", "Geist Mono", "SFMono-Regular", Menlo, Consolas, monospace;
 
   --radius-lg: 20px;
   --radius-md: 14px;
   --radius-pill: 999px;
-  --radius-window: 28px;
+  --radius-window: 0px;
 
-  /* Soft, mostly-neutral ambient shadow — not a colored glow */
-  --shadow-glass: 0 24px 60px rgba(36, 26, 34, 0.10), 0 4px 14px rgba(219, 39, 119, 0.06);
+  /* Legacy names, still used by the options page until it is restyled */
+  --ink: var(--fg);
+  --muted: var(--mu);
+  --on-gradient: var(--fg);
+  --accent: var(--fg);
+  --accent-soft: var(--ln2);
+  --gradient-main: var(--bg);
+  --glass-bg: var(--p1);
+  --glass-bg-strong: var(--p2);
+  --glass-border: var(--ln);
+  --glass-blur: 16px;
+  --window-blur: 0px;
+  --critical: var(--red);
+  --high: var(--red);
+  --medium: var(--amb);
+  --low: var(--grn);
+  --info: var(--mu);
+  --shadow-glass: none;
 }

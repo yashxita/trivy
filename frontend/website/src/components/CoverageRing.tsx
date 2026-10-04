@@ -21,7 +21,7 @@ export default function CoverageRing({ coverage }: { coverage: Coverage }) {
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke="var(--glass-border)"
+          stroke="var(--ln)"
           strokeWidth={stroke}
         />
         <circle
@@ -29,7 +29,7 @@ export default function CoverageRing({ coverage }: { coverage: Coverage }) {
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke="var(--accent)"
+          stroke="var(--glow)"
           strokeWidth={stroke}
           strokeDasharray={circumference}
           strokeDashoffset={dashOffset}
