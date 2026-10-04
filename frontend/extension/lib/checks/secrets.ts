@@ -10,6 +10,11 @@ const SECRET_PATTERNS: { type: string; pattern: RegExp }[] = [
 ];
 
 const MAX_MATCHES_PER_PAGE = 25; // safety cap against pathological pages
+const HIGH_RISK_SECRET_TYPES = new Set([
+  "private_key_block",
+  "aws_access_key",
+  "stripe_key",
+]);
 
 /**
  * Scans inline <script> tag contents on the current page for patterns
@@ -40,7 +45,10 @@ export function checkExposedSecrets(): ExposedSecretFinding[] {
           pageUrl,
           secretType: type,
           location: "inline <script> tag",
-          severity: "High",
+          severity: HIGH_RISK_SECRET_TYPES.has(type) ? "High" : "Info",
+          confidence: "heuristic",
+          evidence:
+            "Matches a secret-shaped pattern; validity has not been verified",
         });
         matchCount++;
         if (matchCount >= MAX_MATCHES_PER_PAGE) break;

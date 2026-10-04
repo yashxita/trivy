@@ -29,8 +29,14 @@ export default defineBackground(() => {
     if (message.type === "RUN_SCAN") {
       runScan(message.scanMode, message.consent, sender.tab?.id)
         .then((result) => sendResponse({ type: "SCAN_COMPLETE", result }))
-        .catch((err: Error) =>
-          sendResponse({ type: "SCAN_ERROR", message: err.message }),
+        .catch((err: Error & { code?: string }) =>
+          sendResponse({
+            type: "SCAN_ERROR",
+            message: err.message,
+            // ApiError carries the backend's error code (e.g. target_not_allowlisted).
+            // Plain errors, like "No active tab", have no code and stay undefined.
+            code: err.code,
+          }),
         );
       return true;
     }
@@ -130,9 +136,9 @@ async function runScan(
             category: "discovered_endpoint",
             pageUrl: activeTab.url!,
             severity: "Info",
-            source: "dom",
+            source: "browser",
             method: req.method,
-            testedUrl: req.url,
+            testedUrl: stripQuery(req.url, activeTab.url!),
             evidence: `content-type: ${req.contentType || "unknown"}; query params: ${
               req.queryParamNames.join(", ") || "none"
             }; body fields: ${req.bodyFieldNames.join(", ") || "none"}`,
@@ -173,11 +179,18 @@ async function runScan(
     throw new Error("Backend is unreachable. Try again shortly.");
   }
 
+    // These two categories only exist in the browser. The backend rejects
+  // unknown categories with a 400, so keep them out of the request and
+  // merge them back into the result for display.
+  const LOCAL_ONLY = new Set(["dom_xss_taint", "discovered_endpoint"]);
+  const backendFindings = passiveFindings.filter((f) => !LOCAL_ONLY.has(f.category));
+  const localFindings = passiveFindings.filter((f) => LOCAL_ONLY.has(f.category));
+
   const result = await submitScan({
     target: activeTab.url,
     scanMode,
     consent,
-    findings: passiveFindings,
+    findings: backendFindings,
     rateLimit: {
       requestsPerSecond: settings.requestsPerSecond,
       maxConcurrency: settings.maxConcurrency,
@@ -186,5 +199,14 @@ async function runScan(
   });
 
   reportProgress(100);
-  return result;
+  return { ...result, findings: [...result.findings, ...localFindings] };
+}
+
+function stripQuery(raw: string, base: string): string {
+  try {
+    const u = new URL(raw, base);
+    return `${u.origin}${u.pathname}`;
+  } catch {
+    return raw.split(/[?#]/)[0] ?? "";
+  }
 }

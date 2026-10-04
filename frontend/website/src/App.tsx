@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { submitScan } from "./shared/api-client";
+import { ApiError, submitScan } from "./shared/api-client";
 import type { Coverage, Finding } from "./shared/types";
-import { describeFinding, getRemediation } from "./lib/remediation";
+import { confidenceLabel, describeFinding, getRemediation } from "./lib/remediation";
 import SeverityBarChart from "./components/SeverityBarChart";
 import CategoryBarChart from "./components/CategoryBarChart";
 import CoverageRing from "./components/CoverageRing";
@@ -52,6 +52,7 @@ export default function App() {
   const [consent, setConsent] = useState(false);
   const [scanState, setScanState] = useState<ScanState>("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
   const [findings, setFindings] = useState<Finding[]>([]);
   const [coverage, setCoverage] = useState<Coverage | null>(null);
   const [selected, setSelected] = useState(0);
@@ -70,6 +71,7 @@ export default function App() {
     setScanState("running");
     setErrorMessage(null);
     setViewingPastId(null);
+    setErrorCode(null);
 
     try {
       const result = await submitScan({
@@ -103,6 +105,7 @@ export default function App() {
     } catch (err) {
       setScanState("error");
       setErrorMessage(err instanceof Error ? err.message : "Scan failed.");
+      setErrorCode(err instanceof ApiError ? err.code : null);
     }
   }
 
@@ -190,7 +193,13 @@ export default function App() {
             />
             I'm authorized to run active security tests against this domain
           </label>
-          {errorMessage && <p className="error-text">{errorMessage}</p>}
+          {errorMessage && (
+            <ScanError
+              message={errorMessage}
+              code={errorCode}
+              host={safeHost(target)}
+            />
+          )}
         </div>
       </header>
 
@@ -328,27 +337,68 @@ export default function App() {
 
 function DetailView({ finding }: { finding: Finding }) {
   const { title, evidence } = describeFinding(finding);
-  const { remediation, references } = getRemediation(finding.category);
+  const { remediation, references } = getRemediation(finding.category, finding);
+  const confidence = confidenceLabel(finding);
+  const samples = (finding.sampleUrls ?? []).slice(0, 5);
 
   return (
     <>
       <div className="detail-panel__header">
         <h3>{title}</h3>
-        <span className={`severity-badge severity-badge--${finding.severity.toLowerCase()}`}>
-          {finding.severity}
-        </span>
+        <div className="detail-panel__badges">
+          <span className={`severity-badge severity-badge--${finding.severity.toLowerCase()}`}>
+            {finding.severity}
+          </span>
+          {confidence && (
+            <span className={`confidence-badge confidence-badge--${finding.confidence}`}>
+              {confidence}
+            </span>
+          )}
+        </div>
       </div>
-      <p className="detail-panel__meta">{finding.pageUrl} · {finding.category}</p>
+      <p className="detail-panel__meta">
+        <PageLabel url={finding.pageUrl} /> · {finding.category}
+      </p>
+
+      {finding.affectedPages !== undefined && finding.affectedPages > 1 && (
+        <>
+          <h4>Seen on {finding.affectedPages} pages</h4>
+          <ul className="sample-list">
+            {samples.map((u) => (
+              <li key={u}>
+                <PageLabel url={u} />
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
 
       <h4>Evidence</h4>
-      <div className="evidence-block">{evidence}</div>
+      <div className="evidence-block">{evidence || "No evidence text provided."}</div>
 
-      <h4>Fix</h4>
+      <h4>What to do</h4>
       <p className="detail-panel__fix">{remediation}</p>
 
       <p className="detail-panel__refs">refs: {references}</p>
     </>
   );
+}
+
+/** The backend rewrites URL paths to /redacted and strips queries. Say so instead of showing it as a real path. */
+function PageLabel({ url }: { url: string }) {
+  try {
+    const u = new URL(url);
+    if (u.pathname === "/redacted") {
+      return (
+        <>
+          {u.origin} <span className="redacted-chip">path hidden by server</span>
+        </>
+      );
+    }
+  } catch {
+    // not a parseable URL; show as-is
+  }
+  return <>{url}</>;
 }
 
 function safeDomain(url: string): string {
@@ -357,6 +407,51 @@ function safeDomain(url: string): string {
   } catch {
     return "scan";
   }
+}
+
+/** host includes the port (e.g. localhost:3000), which is what the backend allowlist matches on. */
+function safeHost(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    return "";
+  }
+}
+
+function ScanError({
+  message,
+  code,
+  host,
+}: {
+  message: string;
+  code: string | null;
+  host: string;
+}) {
+  if (code === "target_not_allowlisted") {
+    return (
+      <div className="callout" role="alert">
+        <strong>Active scanning isn't enabled for {host || "this host"}</strong>
+        <p>
+          Active scans are intrusive, so the backend only runs them against
+          hosts it has been told to allow. Nothing was sent to this target.
+        </p>
+        <p>
+          Ask the backend owner to add <code>{host || "the host"}</code> to{" "}
+          <code>TRIVY_INTRUSIVE_ALLOWED_HOSTS</code>. The match is exact,
+          including the port. Only scan sites you are authorized to test.
+        </p>
+      </div>
+    );
+  }
+  if (code === "scan_capacity_reached") {
+    return (
+      <div className="callout" role="alert">
+        <strong>The backend is busy</strong>
+        <p>Too many active scans are already running. Wait a few seconds and try again.</p>
+      </div>
+    );
+  }
+  return <p className="error-text">{message}</p>;
 }
 
 function formatTime(ts: number): string {

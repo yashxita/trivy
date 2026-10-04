@@ -6,15 +6,15 @@ import { DEFAULT_SETTINGS, type FindingCategory, type ScanSettings } from "../..
 // produced entirely on the backend and aren't something the extension
 // runs, so there's nothing to enable/disable here.
 const TOGGLEABLE_CATEGORIES: { key: FindingCategory; label: string }[] = [
-  { key: "header", label: "Security headers" },
-  { key: "insecure_cookie", label: "Insecure cookies" },
-  { key: "insecure_form", label: "Insecure forms" },
-  { key: "unencrypted_credentials", label: "Unencrypted credential submission" },
+  { key: "header", label: "Missing security headers" },
+  { key: "insecure_cookie", label: "Cookie attribute review" },
+  { key: "insecure_form", label: "Form review (HTTP action, possible missing CSRF)" },
+  { key: "unencrypted_credentials", label: "Password submitted over HTTP" },
   { key: "mixed_content", label: "Mixed HTTP/HTTPS content" },
-  { key: "sensitive_url", label: "Sensitive info in URLs" },
-  { key: "exposed_secret", label: "Exposed secrets / API keys" },
-  { key: "vulnerable_library", label: "Vulnerable JS libraries" },
-  { key: "sensitive_storage", label: "Sensitive data in storage" },
+  { key: "sensitive_url", label: "Sensitive-looking URL parameters" },
+  { key: "exposed_secret", label: "Secret-shaped strings (unverified)" },
+  { key: "vulnerable_library", label: "Possibly outdated JS libraries" },
+  { key: "sensitive_storage", label: "Sensitive-looking storage entries" },
   { key: "dom_xss_taint", label: "DOM XSS taint tracking" },
   { key: "discovered_endpoint", label: "SPA endpoint discovery" },
 ];

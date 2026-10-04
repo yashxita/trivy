@@ -1,15 +1,13 @@
 /**
  * API client for talking to the Go backend.
  *
- * FOR BACKEND PARTNER: this file is the complete list of every HTTP call
- * the frontend makes. There are only three functions below, matching the
- * three endpoints in API_CONTRACT.md. If you build exactly these three
- * routes with these request/response shapes, the frontend will work
- * against your server with zero changes on our side.
+ * Endpoints: GET /api/v1/health, POST /api/v1/scans, GET /api/v1/scans/{id}.
+ * The backend URL comes from VITE_BACKEND_URL (see .env.example).
  *
- * The backend URL is read from one env var (see .env.example) so switching
- * between local dev and a deployed backend is a one-line change, not a
- * find-and-replace across the codebase.
+ * Errors from the backend look like:
+ *   { "error": { "code": "target_not_allowlisted", "message": "..." } }
+ * They are parsed into ApiError so the UI can branch on `code` instead of
+ * showing raw JSON.
  */
 
 import type { ScanRequest, ScanResponse } from "./types";
@@ -17,20 +15,49 @@ import type { ScanRequest, ScanResponse } from "./types";
 const BACKEND_URL =
   import.meta.env.VITE_BACKEND_URL ?? "http://localhost:8080";
 
+/** Error codes the backend currently returns, plus our own client-side ones. */
+export type ApiErrorCode =
+  | "target_not_allowlisted"
+  | "scan_capacity_reached"
+  | "scan_failed"
+  | "invalid_request"
+  | "invalid_json"
+  | "unsupported_media_type"
+  | "not_found"
+  | "storage_failed"
+  | "database_unavailable"
+  | "network_error"
+  | "unknown";
+
 class ApiError extends Error {
-  constructor(
-    message: string,
-    public status: number,
-  ) {
+  status: number;
+  code: ApiErrorCode;
+
+  constructor(message: string, status: number, code: ApiErrorCode = "unknown") {
     super(message);
     this.name = "ApiError";
+    this.status = status;
+    this.code = code;
   }
+}
+
+/** Turns a failed Response into an ApiError, using the backend's JSON body when present. */
+async function toApiError(res: Response, fallback: string): Promise<ApiError> {
+  let code: ApiErrorCode = "unknown";
+  let message = `${fallback} (HTTP ${res.status})`;
+  try {
+    const body = await res.json();
+    if (body?.error?.code) code = body.error.code as ApiErrorCode;
+    if (body?.error?.message) message = String(body.error.message);
+  } catch {
+    // Not JSON (proxy error page, etc.): keep the fallback message.
+  }
+  return new ApiError(message, res.status, code);
 }
 
 /**
  * GET /api/v1/health
- * Used by the popup to show "backend unreachable" instead of a silent
- * failure when the user tries to run an active/combined scan.
+ * Used to show "backend unreachable" instead of a silent failure.
  */
 export async function checkHealth(): Promise<boolean> {
   try {
@@ -44,50 +71,42 @@ export async function checkHealth(): Promise<boolean> {
 /**
  * POST /api/v1/scans
  * Sends passive findings already computed in the browser, plus scan mode
- * and consent. If scanMode is "active" or "combined", the backend runs the
- * active probe engine and returns the combined findings list.
- *
- * If scanMode is "passive", the backend does not need to do any probing —
- * it can just validate/store (or not store, per current no-history
- * decision) and echo the findings back, or return them unchanged.
+ * and consent. For active/combined scans the backend runs its probes, and
+ * only for hosts in its allowlist (otherwise: 403 target_not_allowlisted).
  */
 export async function submitScan(
   request: ScanRequest,
   authToken?: string,
 ): Promise<ScanResponse> {
-  const res = await fetch(`${BACKEND_URL}/api/v1/scans`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
-    },
-    body: JSON.stringify(request),
-  });
-
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
+  let res: Response;
+  try {
+    res = await fetch(`${BACKEND_URL}/api/v1/scans`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+      },
+      body: JSON.stringify(request),
+    });
+  } catch {
     throw new ApiError(
-      `Scan request failed: ${res.status} ${body}`,
-      res.status,
+      "Could not reach the backend. Check that it is running and that its CORS settings allow this origin.",
+      0,
+      "network_error",
     );
   }
 
+  if (!res.ok) throw await toApiError(res, "Scan request failed");
   return res.json();
 }
 
 /**
  * GET /api/v1/scans/{scan_id}
- * Only needed if the backend responds to POST /scans with a scan_id before
- * the active probes finish (async pattern) rather than returning the full
- * result synchronously. Not used yet — wired up here so it's ready the
- * moment the backend decides which pattern to use. See the "Open question"
- * note in API_CONTRACT.md.
+ * Fetches a stored (sanitized) scan result.
  */
 export async function getScanResult(scanId: string): Promise<ScanResponse> {
   const res = await fetch(`${BACKEND_URL}/api/v1/scans/${scanId}`);
-  if (!res.ok) {
-    throw new ApiError(`Failed to fetch scan ${scanId}`, res.status);
-  }
+  if (!res.ok) throw await toApiError(res, `Failed to fetch scan ${scanId}`);
   return res.json();
 }
 

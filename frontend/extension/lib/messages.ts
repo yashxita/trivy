@@ -12,7 +12,7 @@ export type ExtensionMessage =
   | { type: "CONTENT_FINDINGS"; findings: Finding[] }
   | { type: "SCAN_PROGRESS"; percent: number }
   | { type: "SCAN_COMPLETE"; result: ScanResponse }
-  | { type: "SCAN_ERROR"; message: string };
+  | { type: "SCAN_ERROR"; message: string; code?: string };
 
 /** Narrow-and-validate helper — use instead of trusting `msg.type` blindly. */
 export function isExtensionMessage(msg: unknown): msg is ExtensionMessage {

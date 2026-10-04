@@ -29,7 +29,10 @@ function scanStorage(
         storageType,
         keyName: key,
         reason,
-        severity: "Medium",
+        severity: "Info",
+        confidence: "heuristic",
+        evidence:
+          "Storage entry may contain sensitive data; the value was not read into the report",
       });
     }
   }

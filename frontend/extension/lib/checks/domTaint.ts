@@ -166,9 +166,11 @@ export function getDomTaintFindings(): Finding[] {
     (h): Finding => ({
       category: "dom_xss_taint",
       pageUrl: h.pageUrl,
-      severity: "High",
+      severity: "Medium",
       confidence: "heuristic",
-      source: h.source,
+      // The backend only accepts http | browser | extension. The specific
+      // source (url_query:x, url_hash, form_input:y) is already in evidence.
+      source: "browser",
       evidence: h.evidence,
     }),
   );

@@ -21,6 +21,7 @@ export default function App() {
   const [findings, setFindings] = useState<Finding[]>([]);
   const [coverage, setCoverage] = useState<Coverage | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
   const [pageUrl, setPageUrl] = useState<string>("");
 
   useEffect(() => {
@@ -60,6 +61,7 @@ export default function App() {
     setScanState("running");
     setProgress(0);
     setErrorMessage(null);
+    setErrorCode(null);
 
     const message: ExtensionMessage = { type: "RUN_SCAN", scanMode, consent };
     chrome.runtime.sendMessage(message, (response: ExtensionMessage) => {
@@ -79,6 +81,7 @@ export default function App() {
       } else if (response.type === "SCAN_ERROR") {
         setScanState("error");
         setErrorMessage(response.message);
+        setErrorCode(response.code ?? null);
       }
     });
   }
@@ -157,7 +160,13 @@ export default function App() {
           </div>
         )}
 
-        {errorMessage && <p className="error-text">{errorMessage}</p>}
+        {errorMessage && (
+          <ScanError
+            message={errorMessage}
+            code={errorCode}
+            host={safeHost(pageUrl)}
+          />
+        )}
       </div>
 
       {scanState === "done" && (
@@ -175,7 +184,7 @@ export default function App() {
           ) : (
             <ul className="findings-list">
               {mainFindings.map((f, i) => (
-                <li key={i} className={`finding finding--${f.severity.toLowerCase()}`}>
+                <li key={i} className={`finding finding--${f.severity.toLowerCase()}`} title={f.evidence}>
                   <span className="finding__dot" />
                   <span className="finding__label">{describeFinding(f)}</span>
                   <span className="finding__severity">{f.severity}</span>
@@ -189,7 +198,7 @@ export default function App() {
               <h2 className="findings-heading findings-heading--info">Info ({infoFindings.length})</h2>
               <ul className="findings-list">
                 {infoFindings.map((f, i) => (
-                  <li key={i} className="finding finding--info">
+                  <li key={i} className="finding finding--info" title={f.evidence}>
                     <span className="finding__dot" />
                     <span className="finding__label">{describeFinding(f)}</span>
                     <span className="finding__severity">Info</span>
@@ -224,34 +233,81 @@ function safeDomain(url: string): string {
   }
 }
 
+/** host includes the port (e.g. localhost:3000), which is what the backend allowlist matches on. */
+function safeHost(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    return "";
+  }
+}
+
+function ScanError({
+  message,
+  code,
+  host,
+}: {
+  message: string;
+  code: string | null;
+  host: string;
+}) {
+  if (code === "target_not_allowlisted") {
+    return (
+      <div className="callout" role="alert">
+        <strong>Active scanning isn't enabled for {host || "this host"}</strong>
+        <p>
+          The backend only runs active probes against hosts it has been told to
+          allow. Passive scans still work on this site.
+        </p>
+        <p>
+          Ask the backend owner to add <code>{host || "the host"}</code> to{" "}
+          <code>TRIVY_INTRUSIVE_ALLOWED_HOSTS</code>. The match is exact,
+          including the port.
+        </p>
+      </div>
+    );
+  }
+  if (code === "scan_capacity_reached") {
+    return (
+      <div className="callout" role="alert">
+        <strong>The backend is busy</strong>
+        <p>Too many active scans are already running. Wait a few seconds and try again.</p>
+      </div>
+    );
+  }
+  return <p className="error-text">{message}</p>;
+}
+
 function describeFinding(f: Finding): string {
   switch (f.category) {
     case "header":
-      return `Missing/weak header: ${f.header}`;
+      return `${f.status === "weak" ? "Weak" : "Missing"} header: ${f.header}`;
     case "insecure_form":
-      return "Insecure form configuration";
+      return f.isActionInsecure
+        ? "HTTPS page submits a form to HTTP"
+        : "Review: possible missing CSRF defense";
     case "unencrypted_credentials":
-      return "Credentials submitted over HTTP";
+      return "Password submitted over HTTP";
     case "mixed_content":
       return `Mixed content: ${f.resourceType}`;
     case "sensitive_url":
-      return `Sensitive value in URL: ${f.parameterName}`;
+      return `Sensitive-looking URL parameter: ${f.parameterName}`;
     case "insecure_cookie":
-      return `Insecure cookie: ${f.cookieName}`;
+      return `Cookie missing attributes: ${f.cookieName}`;
     case "exposed_secret":
-      return `Exposed secret: ${f.secretType}`;
+      return `Secret-shaped value (${f.secretType}), unverified`;
     case "vulnerable_library":
-      return `Vulnerable library: ${f.libraryName} ${f.detectedVersion}`;
+      return `Possibly outdated library: ${f.libraryName} ${f.detectedVersion}`;
     case "sensitive_storage":
-      return `Sensitive data in ${f.storageType}`;
+      return `Storage entry may hold credentials (${f.storageType})`;
     case "reflected_input":
       return `Reflected input: ${f.parameterName}`;
     case "sql_injection":
-      return `Possible SQL injection: ${f.parameterName}`;
+      return `Possible database error signature: ${f.parameterName}`;
     case "cors_misconfig":
-      return "CORS misconfiguration";
+      return "CORS: untrusted Origin accepted";
     case "dom_xss_taint":
-      return f.evidence ?? `DOM XSS: value from ${f.source ?? "unknown source"}`;
+      return "Possible DOM XSS: value reached a DOM sink";
     case "discovered_endpoint":
       return `${f.method} ${f.testedUrl}`;
     default:

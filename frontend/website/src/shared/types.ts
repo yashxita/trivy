@@ -68,9 +68,9 @@ interface FindingBase {
    * "sampleUrls" appear when the backend rolls up the same issue found
    * across a crawl of multiple pages into one finding.
    */
-  confidence?: "heuristic" | "likely" | "confirmed";
-  /** Where this finding came from — "http" for backend probes, "dom" for frontend-observed findings. */
-  source?: string;
+  confidence?: "confirmed" | "likely" | "heuristic" | "informational";
+  /** Where this finding came from. The backend only accepts "http" (backend probes), "browser" or "extension". */
+  source?: "http" | "browser" | "extension";
   /** Free-text evidence description. Always prefer this over inventing a new typed field. */
   evidence?: string;
   testedUrl?: string;

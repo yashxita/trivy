@@ -76,8 +76,12 @@ export function checkVulnerableLibraries(): VulnerableLibraryFinding[] {
       pageUrl,
       libraryName: rule.name,
       detectedVersion: version,
-      knownCve: rule.knownCve,
-      severity: "High",
+      // The backend clears knownCve and rates this Info/heuristic: a version
+      // string alone doesn't prove the advisory applies to how it is used.
+      severity: "Info",
+      confidence: "heuristic",
+      evidence:
+        "Version detected from the page; verify the loaded code and whether the advisory applies",
     });
   }
 
